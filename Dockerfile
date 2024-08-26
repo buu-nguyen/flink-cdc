@@ -15,21 +15,34 @@
 # * limitations under the License.
 # */
 
-FROM flink
+FROM flink:1.17
 
-ARG FLINK_CDC_VERSION=3.2-SNAPSHOT
-ARG PIPELINE_DEFINITION_FILE
+# Update packages of base image
+RUN set -ex; \
+    apt-get update; \
+    apt-get -y dist-upgrade; \
+    rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /opt/flink-cdc
-RUN mkdir -p /opt/flink/usrlib
+ARG FLINK_CDC_VERSION=3.2.0
+
 ENV FLINK_CDC_HOME /opt/flink-cdc
+ARG FLINK_USRLIB_DIR=/opt/flink/usrlib
+RUN mkdir -p ${FLINK_CDC_HOME} ${FLINK_USRLIB_DIR}
+
 COPY flink-cdc-dist/target/flink-cdc-${FLINK_CDC_VERSION}-bin.tar.gz /tmp/
 RUN tar -xzvf /tmp/flink-cdc-${FLINK_CDC_VERSION}-bin.tar.gz -C /tmp/ && \
-    mv /tmp/flink-cdc-${FLINK_CDC_VERSION}/* /opt/flink-cdc/ && \
-    mv /opt/flink-cdc/lib/flink-cdc-dist-${FLINK_CDC_VERSION}.jar /opt/flink-cdc/lib/flink-cdc-dist.jar && \
+    mv /tmp/flink-cdc-${FLINK_CDC_VERSION}/* ${FLINK_CDC_HOME} && \
+    mv ${FLINK_CDC_HOME}/lib/flink-cdc-dist-${FLINK_CDC_VERSION}.jar ${FLINK_CDC_HOME}/lib/flink-cdc-dist.jar && \
     rm -rf /tmp/flink-cdc-${FLINK_CDC_VERSION} /tmp/flink-cdc-${FLINK_CDC_VERSION}-bin.tar.gz
+
 # copy jars to cdc libs
-COPY flink-cdc-connect/flink-cdc-pipeline-connectors/flink-cdc-pipeline-connector-values/target/flink-cdc-pipeline-connector-values-${FLINK_CDC_VERSION}.jar /opt/flink/usrlib/flink-cdc-pipeline-connector-values-${FLINK_CDC_VERSION}.jar
-COPY flink-cdc-connect/flink-cdc-pipeline-connectors/flink-cdc-pipeline-connector-mysql/target/flink-cdc-pipeline-connector-mysql-${FLINK_CDC_VERSION}.jar /opt/flink/usrlib/flink-cdc-pipeline-connector-mysql-${FLINK_CDC_VERSION}.jar
-# copy flink cdc pipeline conf file, Here is an example. Users can replace it according to their needs.
-COPY $PIPELINE_DEFINITION_FILE $FLINK_CDC_HOME/conf
+## Pipeline connectors
+COPY flink-cdc-connect/flink-cdc-pipeline-connectors/flink-cdc-pipeline-connector-doris/target/flink-cdc-pipeline-connector-doris-${FLINK_CDC_VERSION}.jar ${FLINK_USRLIB_DIR}/flink-cdc-pipeline-connector-doris-${FLINK_CDC_VERSION}.jar
+COPY flink-cdc-connect/flink-cdc-pipeline-connectors/flink-cdc-pipeline-connector-mysql/target/flink-cdc-pipeline-connector-mysql-${FLINK_CDC_VERSION}.jar ${FLINK_USRLIB_DIR}/flink-cdc-pipeline-connector-mysql-${FLINK_CDC_VERSION}.jar
+## Source connectors
+COPY flink-cdc-connect/flink-cdc-source-connectors/flink-sql-connector-postgres-cdc/target/flink-sql-connector-postgres-cdc-${FLINK_CDC_VERSION}.jar ${FLINK_USRLIB_DIR}/flink-sql-connector-postgres-cdc-${FLINK_CDC_VERSION}.jar
+
+# Download dependencies jars
+## MySQL connector
+RUN wget -O ${FLINK_USRLIB_DIR}/mysql-connector-java-8.0.28.jar \
+    https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.28/mysql-connector-java-8.0.28.jar
